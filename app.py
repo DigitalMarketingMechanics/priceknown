@@ -1,92 +1,73 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import asyncio
-import httpx
-from datetime import datetime
+from PIL import Image
 
-# --- CONFIGURATION & UI SETUP ---
-st.set_page_config(page_title="Global Price Scout 2026", layout="wide")
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="Global Price Vision", layout="wide")
 
-st.title("🌐 Global Price Scout")
-st.markdown("Enter a product to find the lowest prices across the **World Market**.")
+st.title("📸 AI Product Price Scout")
+st.write("Upload a photo or enter text to find the best prices globally.")
 
-# --- UTILITY: CURRENCY CONVERSION ---
-# In production, use an API like Fixer.io or ExchangeRate-API
-EXCHANGE_RATES = {"USD": 1.0, "EUR": 0.92, "GBP": 0.79, "INR": 83.0, "JPY": 150.0}
-
-def convert_to_usd(price, currency):
-    return price / EXCHANGE_RATES.get(currency, 1.0)
-
-# --- MOCK SCRAPER ENGINE (Replace with real Scraper/API calls) ---
-async def fetch_prices(product_query):
-    """
-    Simulates fetching data from global markets simultaneously.
-    Replace these with actual HTTP requests to SerpApi or Rainforest API.
-    """
-    await asyncio.sleep(1.5)  # Simulate network latency
-    
-    # Mock data representing different global regions
-    data = [
-        {"Store": "Amazon US", "Price": 1200.00, "Currency": "USD", "Link": "https://amazon.com", "Region": "North America"},
-        {"Store": "MediaMarkt DE", "Price": 1050.00, "Currency": "EUR", "Link": "https://mediamarkt.de", "Region": "Europe"},
-        {"Store": "Currys UK", "Price": 900.00, "Currency": "GBP", "Link": "https://currys.co.uk", "Region": "Europe"},
-        {"Store": "Bic Camera JP", "Price": 175000.00, "Currency": "JPY", "Link": "https://biccamera.com", "Region": "Asia"},
-        {"Store": "Flipkart IN", "Price": 98000.00, "Currency": "INR", "Link": "https://flipkart.com", "Region": "Asia"},
-    ]
-    
-    # Process and Normalize
-    for item in data:
-        item["Price (USD)"] = round(convert_to_usd(item["Price"], item["Currency"]), 2)
-    
-    return sorted(data, key=lambda x: x["Price (USD)"])
-
-# --- SIDEBAR: CONTROLS ---
+# --- SIDEBAR: SETTINGS ---
 with st.sidebar:
-    st.header("Search Settings")
-    target_currency = st.selectbox("Display Currency", options=list(EXCHANGE_RATES.keys()))
-    include_shipping = st.checkbox("Include Estimated Shipping", value=True)
-    st.divider()
-    st.info("This app scans official global retailers using real-time API aggregation.")
+    st.header("Global Filters")
+    currency = st.selectbox("Preferred Currency", ["USD", "EUR", "GBP", "JPY", "INR"])
+    max_shipping = st.slider("Max Shipping Days", 1, 30, 7)
 
-# --- MAIN APP LOGIC ---
-query = st.text_input("What product are you looking for?", placeholder="e.g. MacBook Pro M3 Max 16-inch")
+# --- STEP 1: INPUT ---
+col_in1, col_in2 = st.columns([1, 2])
 
-if query:
-    with st.spinner(f"Searching the global market for '{query}'..."):
-        # Run the async scraper
-        results = asyncio.run(fetch_prices(query))
-        
-        # Display Best Deal Highlight
-        best_deal = results[0]
-        st.success(f"**Best Price Found:** ${best_deal['Price (USD)']} at {best_deal['Store']} ({best_deal['Region']})")
-        
-        # Create Columns for Visual Metrics
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Lowest Price", f"${best_deal['Price (USD)']}")
-        col2.metric("Average Global Price", f"${round(sum(d['Price (USD)'] for d in results)/len(results), 2)}")
-        col3.metric("Market Variance", f"{round(((results[-1]['Price (USD)'] - results[0]['Price (USD)'])/results[0]['Price (USD)'])*100, 1)}%")
+with col_in1:
+    uploaded_file = st.file_uploader("Upload Product Image", type=["jpg", "png", "jpeg"])
+    if uploaded_file:
+        img = Image.open(uploaded_file)
+        st.image(img, caption="Product to Search", use_container_width=True)
 
-        # Display Data Table
-        df = pd.DataFrame(results)
+with col_in2:
+    product_name = st.text_input("Product Name/Details", placeholder="e.g. Sony WH-1000XM5 Black")
+    search_btn = st.button("🔍 Find World-Wide Prices", use_container_width=True)
+
+# --- STEP 2: GLOBAL SEARCH LOGIC ---
+if search_btn and product_name:
+    with st.spinner("Scanning Global Markets..."):
+        # Mock Data with Coordinates for the Map
+        # In 2026, you'd fetch this via a Global Price API
+        world_data = [
+            {"Store": "Amazon US", "Price": 348.00, "lat": 37.09, "lon": -95.71, "Link": "https://amazon.com", "Country": "USA"},
+            {"Store": "Alibaba CN", "Price": 290.00, "lat": 35.86, "lon": 104.19, "Link": "https://alibaba.com", "Country": "China"},
+            {"Store": "MediaMarkt DE", "Price": 315.00, "lat": 51.16, "lon": 10.45, "Link": "https://mediamarkt.de", "Country": "Germany"},
+            {"Store": "Flipkart IN", "Price": 340.00, "lat": 20.59, "lon": 78.96, "Link": "https://flipkart.com", "Country": "India"},
+            {"Store": "Currys UK", "Price": 310.00, "lat": 55.37, "lon": -3.43, "Link": "https://currys.co.uk", "Country": "UK"},
+        ]
         
-        # Add clickable links
-        st.subheader("Price Comparison Table (Low to High)")
+        df = pd.DataFrame(world_data)
+        df = df.sort_values("Price") # Low to High
+
+        # Display Metrics
+        m1, m2 = st.columns(2)
+        m1.metric("Lowest Global Price", f"${df.iloc[0]['Price']}")
+        m2.metric("Market Average", f"${round(df['Price'].mean(), 2)}")
+
+        # --- STEP 3: WORLD MAP VISUAL ---
+        st.subheader("🌍 World Market Distribution")
+        # st.map requires columns 'lat' and 'lon'
+        st.map(df, size=20, color='#00ff00')
+
+        # --- STEP 4: PURCHASE LINKS ---
+        st.subheader("🛒 Purchase Links (Sorted: Low to High)")
+        
+        # Display as a clean data editor/table
         st.dataframe(
-            df,
+            df[['Store', 'Country', 'Price', 'Link']],
             column_config={
-                "Link": st.column_config.LinkColumn("Purchase Link"),
-                "Price (USD)": st.column_config.NumberColumn(format="$%.2f")
+                "Link": st.column_config.LinkColumn("Official Site"),
+                "Price": st.column_config.NumberColumn(format="$%.2f")
             },
             hide_index=True,
             use_container_width=True
         )
 
-        # Visual Chart
-        st.subheader("Price Distribution by Region")
-        st.bar_chart(df, x="Store", y="Price (USD)", color="Region")
-
-else:
-    st.info("Enter a product name above to start the comparison.")
-
-# --- FOOTER ---
-st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+elif search_btn and not product_name:
+    st.error("Please enter a product name or upload an image with a description.")
